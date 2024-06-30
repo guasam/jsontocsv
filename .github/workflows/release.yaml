@@ -1,0 +1,117 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+    - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.x'
+    - run: dotnet build -c Release
+
+    - name: Publish (linux-x64)
+      run: dotnet publish -c Release -r linux-x64 --p:DebugType=None
+
+    - name: Publish (win-x64)
+      run: dotnet publish -c Release -r win-x64 --p:DebugType=None
+
+    - name: Publish (osx-arm64)
+      run: dotnet publish -c Release -r osx-arm64 --p:DebugType=None
+
+    - name: Package binaries
+      run: |
+        zip -j -r jsontocsv-linux-x64.zip ./bin/Release/net8.0/linux-x64/publish/*
+        zip -j -r jsontocsv-win-x64.zip ./bin/Release/net8.0/win-x64/publish/*
+        zip -j -r jsontocsv-osx-arm64.zip ./bin/Release/net8.0/osx-arm64/publish/*
+
+    - name: Upload artifact (linux-x64)
+      uses: actions/upload-artifact@v4
+      with:
+        name: jsontocsv-linux-x64
+        path: jsontocsv-linux-x64.zip
+
+    - name: Upload artifact (win-x64)
+      uses: actions/upload-artifact@v4
+      with:
+        name: jsontocsv-win-x64
+        path: jsontocsv-win-x64.zip
+
+    - name: Upload artifact (osx-arm64)
+      uses: actions/upload-artifact@v4
+      with:
+        name: jsontocsv-osx-arm64
+        path: jsontocsv-osx-arm64.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Download Linux artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: jsontocsv-linux-x64
+
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: jsontocsv-win-x64
+
+    - name: Download OSX artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: jsontocsv-osx-arm64
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Linux Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: jsontocsv-linux-x64.zip
+        asset_name: jsontocsv-${{ github.ref_name }}-linux-x64.zip
+        asset_content_type: application/zip
+
+    - name: Upload Windows Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: jsontocsv-win-x64.zip
+        asset_name: jsontocsv-${{ github.ref_name }}-win-x64.zip
+        asset_content_type: application/zip
+
+    - name: Upload OSX Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: jsontocsv-osx-arm64.zip
+        asset_name: jsontocsv-${{ github.ref_name }}-osx-arm64.zip
+        asset_content_type: application/zip
